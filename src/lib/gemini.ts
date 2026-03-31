@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { GeneratedCreative, GenerationParams } from "@/types";
 import { buildPrompt } from "./prompts";
 
-const MODEL_NAME = "gemini-2.0-flash-exp";
+const MODEL_NAME = "gemini-2.0-flash-preview-image-generation";
 
 export async function generateCreatives(
   params: GenerationParams
