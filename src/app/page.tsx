@@ -1,19 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ImageUploader from "@/components/ImageUploader";
 import GenerationParams from "@/components/GenerationParams";
 import ResultsGrid from "@/components/ResultsGrid";
+import FullscreenViewer from "@/components/FullscreenViewer";
+import { loadHistory, saveHistory, loadFavorites, saveFavorites } from "@/lib/storage";
 import type {
   AspectRatio,
   VisualStyle,
   GeneratedCreative,
+  HistoryEntry,
 } from "@/types";
-
-interface HistoryEntry {
-  creatives: GeneratedCreative[];
-  timestamp: number;
-}
 
 export default function Home() {
   // Image state
@@ -34,9 +32,56 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // History
+  // History (persisted)
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Favorites (persisted)
+  const [favorites, setFavorites] = useState<GeneratedCreative[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  // Fullscreen viewer
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
+  const [fullscreenList, setFullscreenList] = useState<GeneratedCreative[]>([]);
+
+  // Load persisted data on mount
+  useEffect(() => {
+    setHistory(loadHistory());
+    setFavorites(loadFavorites());
+  }, []);
+
+  // Persist history
+  useEffect(() => {
+    if (history.length > 0) saveHistory(history);
+  }, [history]);
+
+  // Persist favorites
+  useEffect(() => {
+    saveFavorites(favorites);
+  }, [favorites]);
+
+  const favoriteIds = new Set(favorites.map((f) => f.id));
+
+  const handleToggleFavorite = useCallback(
+    (creative: GeneratedCreative) => {
+      setFavorites((prev) => {
+        const exists = prev.some((f) => f.id === creative.id);
+        if (exists) {
+          return prev.filter((f) => f.id !== creative.id);
+        }
+        return [...prev, creative];
+      });
+    },
+    []
+  );
+
+  const handleImageClick = useCallback(
+    (index: number, list: GeneratedCreative[]) => {
+      setFullscreenList(list);
+      setFullscreenIndex(index);
+    },
+    []
+  );
 
   const handleImageSelected = useCallback((base64: string, mimeType: string) => {
     if (!base64) {
@@ -57,6 +102,7 @@ export default function Home() {
     setGlobalError(null);
     setErrors([]);
     setCreatives([]);
+    setShowFavorites(false);
 
     try {
       const response = await fetch("/api/generate", {
@@ -107,8 +153,8 @@ export default function Home() {
     isGenerating,
   ]);
 
-  const handleDownloadAll = useCallback(() => {
-    creatives.forEach((c, i) => {
+  const handleDownloadAll = useCallback((list: GeneratedCreative[]) => {
+    list.forEach((c, i) => {
       setTimeout(() => {
         const link = document.createElement("a");
         link.href = `data:${c.mimeType};base64,${c.imageBase64}`;
@@ -117,13 +163,16 @@ export default function Home() {
         link.click();
       }, i * 200);
     });
-  }, [creatives]);
+  }, []);
 
   const loadHistoryEntry = useCallback((entry: HistoryEntry) => {
     setCreatives(entry.creatives);
     setErrors([]);
     setShowHistory(false);
+    setShowFavorites(false);
   }, []);
+
+  const displayedCreatives = showFavorites ? favorites : creatives;
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl px-4 py-6">
@@ -174,6 +223,20 @@ export default function Home() {
             </button>
           )}
 
+          {/* Favorites toggle */}
+          {favorites.length > 0 && (
+            <button
+              onClick={() => setShowFavorites(!showFavorites)}
+              className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+                showFavorites
+                  ? "border-red-400 bg-red-50 text-red-600"
+                  : "border-gray-300 text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {showFavorites ? "Retour aux résultats" : `Favoris (${favorites.length})`}
+            </button>
+          )}
+
           {/* History toggle */}
           {history.length > 0 && (
             <div>
@@ -206,6 +269,18 @@ export default function Home() {
 
         {/* Right column: results */}
         <main className="min-h-[400px] flex-1">
+          {showFavorites && favorites.length > 0 && (
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">Favoris</h2>
+              <button
+                onClick={() => handleDownloadAll(favorites)}
+                className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Tout télécharger
+              </button>
+            </div>
+          )}
+
           {globalError && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
               <p className="text-sm font-medium text-red-800">
@@ -215,14 +290,27 @@ export default function Home() {
           )}
 
           <ResultsGrid
-            creatives={creatives}
+            creatives={displayedCreatives}
             isGenerating={isGenerating}
             numberOfCreatives={numberOfCreatives}
-            errors={errors}
-            onDownloadAll={handleDownloadAll}
+            errors={showFavorites ? [] : errors}
+            onDownloadAll={() => handleDownloadAll(displayedCreatives)}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={handleToggleFavorite}
+            onImageClick={(index) => handleImageClick(index, displayedCreatives)}
           />
         </main>
       </div>
+
+      {/* Fullscreen viewer */}
+      {fullscreenIndex !== null && (
+        <FullscreenViewer
+          creatives={fullscreenList}
+          currentIndex={fullscreenIndex}
+          onClose={() => setFullscreenIndex(null)}
+          onNavigate={setFullscreenIndex}
+        />
+      )}
     </div>
   );
 }

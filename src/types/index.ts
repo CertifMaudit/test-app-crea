@@ -47,3 +47,8 @@ export interface GenerationResult {
   creatives: GeneratedCreative[];
   error?: string;
 }
+
+export interface HistoryEntry {
+  creatives: GeneratedCreative[];
+  timestamp: number;
+}

@@ -9,6 +9,9 @@ interface Props {
   numberOfCreatives: number;
   errors: string[];
   onDownloadAll: () => void;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (creative: GeneratedCreative) => void;
+  onImageClick: (index: number) => void;
 }
 
 export default function ResultsGrid({
@@ -17,6 +20,9 @@ export default function ResultsGrid({
   numberOfCreatives,
   errors,
   onDownloadAll,
+  favoriteIds,
+  onToggleFavorite,
+  onImageClick,
 }: Props) {
   if (isGenerating) {
     return (
@@ -90,8 +96,14 @@ export default function ResultsGrid({
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {creatives.map((creative) => (
-          <CreativeCard key={creative.id} creative={creative} />
+        {creatives.map((creative, index) => (
+          <CreativeCard
+            key={creative.id}
+            creative={creative}
+            isFavorite={favoriteIds.has(creative.id)}
+            onToggleFavorite={onToggleFavorite}
+            onImageClick={() => onImageClick(index)}
+          />
         ))}
       </div>
     </div>
