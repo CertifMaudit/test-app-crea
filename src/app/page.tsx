@@ -44,21 +44,27 @@ export default function Home() {
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [fullscreenList, setFullscreenList] = useState<GeneratedCreative[]>([]);
 
+  // Track whether initial data has been loaded from localStorage
+  const [hydrated, setHydrated] = useState(false);
+
   // Load persisted data on mount
   useEffect(() => {
     setHistory(loadHistory());
     setFavorites(loadFavorites());
+    setHydrated(true);
   }, []);
 
-  // Persist history
+  // Persist history when it changes (skip until hydrated)
   useEffect(() => {
-    if (history.length > 0) saveHistory(history);
-  }, [history]);
+    if (!hydrated) return;
+    saveHistory(history);
+  }, [history, hydrated]);
 
-  // Persist favorites
+  // Persist favorites when they change (skip until hydrated)
   useEffect(() => {
+    if (!hydrated) return;
     saveFavorites(favorites);
-  }, [favorites]);
+  }, [favorites, hydrated]);
 
   const favoriteIds = new Set(favorites.map((f) => f.id));
 
@@ -130,10 +136,12 @@ export default function Home() {
       setErrors(data.errors || []);
 
       if (data.creatives?.length > 0) {
-        setHistory((prev) => [
-          { creatives: data.creatives, timestamp: Date.now() },
-          ...prev,
-        ]);
+        setHistory((prev) =>
+          [
+            { creatives: data.creatives, timestamp: Date.now() },
+            ...prev,
+          ].slice(0, 20)
+        );
       }
     } catch {
       setGlobalError(
